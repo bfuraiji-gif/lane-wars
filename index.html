@@ -125,6 +125,15 @@ function save(){try{localStorage.setItem('laneWars3',JSON.stringify(S))}catch(e)
 /* ---------- audio ---------- */
 let ac=null,lastSnd=0;
 function beep(f,d=.08,type='square',v=.05){try{if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;g.gain.value=v;g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d)}catch(e){}}
+let noiseBuf=null,lastShotT=0;
+function shot(){try{if(!ac)return;if(ac.state==='suspended')ac.resume();
+  if(!noiseBuf){const n=Math.floor(ac.sampleRate*.16);noiseBuf=ac.createBuffer(1,n,ac.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3)}
+  const t=ac.currentTime,src=ac.createBufferSource();src.buffer=noiseBuf;src.playbackRate.value=.75+Math.random()*.5;
+  const f=ac.createBiquadFilter();f.type='bandpass';f.frequency.value=900+Math.random()*900;f.Q.value=.7;
+  const g=ac.createGain();g.gain.setValueAtTime(.22,t);g.gain.exponentialRampToValueAtTime(.001,t+.13);
+  src.connect(f);f.connect(g);g.connect(ac.destination);src.start(t);src.stop(t+.16);
+  const o=ac.createOscillator(),og=ac.createGain();o.type='sine';o.frequency.setValueAtTime(190,t);o.frequency.exponentialRampToValueAtTime(45,t+.09);
+  og.gain.setValueAtTime(.2,t);og.gain.exponentialRampToValueAtTime(.001,t+.1);o.connect(og);og.connect(ac.destination);o.start(t);o.stop(t+.11)}catch(e){}}
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- level ---------- */
@@ -161,7 +170,7 @@ function load(lv){const g=genLevel(lv);items=g.items;foeLeft=g.total;boss=items.
 function startLevel(){
   L=S.level;load(L);bullets=[];army=1+S.upStart;lastArmy=-1;rebuildCrowd();px=0;tx=0;kills=0;time=0;floats.length=0;parts.length=0;
   phase='run';$('menu').hidden=true;$('end').hidden=true;$('hud').hidden=false;$('bossRow').hidden=true;$('hLvl').textContent='مرحلة '+L;$('hCoins').textContent=S.coins;
-  const h=$('hint');h.hidden=false;h.style.opacity=1;setTimeout(()=>h.style.opacity=0,3800);setTimeout(()=>h.hidden=true,4500);beep(520,.1);
+  try{if(ac&&ac.state==='suspended')ac.resume()}catch(e){}const h=$('hint');h.hidden=false;h.style.opacity=1;setTimeout(()=>h.style.opacity=0,3800);setTimeout(()=>h.hidden=true,4500);beep(520,.1);
 }
 
 /* ---------- projection & helpers ---------- */
@@ -318,7 +327,7 @@ function update(dt){
   // shooting
   shotAcc+=dt*fireRate();
   while(shotAcc>=1){shotAcc--;const c=crowd[Math.floor(Math.random()*crowd.length)]||[0,0];if(bullets.length<300)bullets.push({x:px+c[0],z:.3})}
-  if(time-lastSnd>.12){lastSnd=time;beep(1500+Math.random()*300,.02,'square',.01)}
+  if(army>0&&time-lastShotT>Math.max(.065,1/fireRate())){lastShotT=time;shot()}
   const bucket={};for(const e of items){if(e.z>VIEW+1||e.t==='panel')continue;const k=Math.floor(e.z);(bucket[k]||(bucket[k]=[])).push(e)}
   for(let i=bullets.length-1;i>=0;i--){const b=bullets[i],z0=b.z;b.z+=42*dt;let hitE=null;
     if(b.z<VIEW)for(let k=Math.floor(z0-.35);k<=Math.floor(b.z+.35)&&!hitE;k++){const bk=bucket[k];if(!bk)continue;for(const e of bk){if(e.dead||e.z<z0-.35||e.z>b.z+.35)continue;
